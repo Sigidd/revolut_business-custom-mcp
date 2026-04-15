@@ -35,13 +35,13 @@ export default function HomePage() {
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 800, margin: "0 auto", padding: "2rem 1rem" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/icon.png"
           alt="Revolut Business MCP"
           width={64}
           height={64}
           style={{ borderRadius: 12 }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
         />
         <div>
           <h1 style={{ margin: 0, fontSize: "1.8rem" }}>Revolut Business MCP</h1>
