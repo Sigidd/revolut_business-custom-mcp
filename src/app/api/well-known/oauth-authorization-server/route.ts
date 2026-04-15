@@ -20,5 +20,8 @@ export function GET() {
     grant_types_supported: ["authorization_code"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
+    // Display metadata — used by MCP clients (e.g. Claude.ai) to show icon and name
+    service_documentation: base,
+    logo_uri: `${base}/icon.png`,
   });
 }
