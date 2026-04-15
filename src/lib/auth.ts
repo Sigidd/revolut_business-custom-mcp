@@ -112,7 +112,7 @@ export function generateRevolutJWT(
 
   const payload = Buffer.from(
     JSON.stringify({
-      iss: baseUrl,
+      iss: baseUrl.replace(/^https?:\/\//, ""),
       sub: clientId,
       aud: "https://revolut.com",
       exp: now + 300,
