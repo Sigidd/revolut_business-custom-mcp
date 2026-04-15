@@ -20,6 +20,13 @@ function getBaseApiUrl(): string {
     : "https://b2b.revolut.com/api/1.0";
 }
 
+function getBaseApiUrlV2(): string {
+  const env = (process.env.REVOLUT_ENVIRONMENT ?? "production").trim().toLowerCase();
+  return env === "sandbox"
+    ? "https://sandbox-b2b.revolut.com/api/2.0"
+    : "https://b2b.revolut.com/api/2.0";
+}
+
 function getTokenUrl(): string {
   const env = (process.env.REVOLUT_ENVIRONMENT ?? "production").trim().toLowerCase();
   return env === "sandbox"
@@ -161,10 +168,11 @@ export class RevolutClient {
   private async request<T = unknown>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    baseUrl?: string
   ): Promise<T> {
     const accessToken = await this.getAccessToken();
-    const url = `${getBaseApiUrl()}${path}`;
+    const url = `${baseUrl ?? getBaseApiUrl()}${path}`;
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
@@ -301,18 +309,18 @@ export class RevolutClient {
 
   // ── Webhooks ──────────────────────────────────────────────────────────────
 
-  /** List all webhooks */
+  /** List all webhooks (v2 API) */
   async listWebhooks(): Promise<RevolutWebhook[]> {
-    return this.request<RevolutWebhook[]>("GET", "/webhooks");
+    return this.request<RevolutWebhook[]>("GET", "/webhooks", undefined, getBaseApiUrlV2());
   }
 
-  /** Create a new webhook */
+  /** Create a new webhook (v2 API) */
   async createWebhook(url: string, events: string[]): Promise<RevolutWebhook> {
-    return this.request<RevolutWebhook>("POST", "/webhooks", { url, events });
+    return this.request<RevolutWebhook>("POST", "/webhooks", { url, events }, getBaseApiUrlV2());
   }
 
-  /** Delete a webhook by ID */
+  /** Delete a webhook by ID (v2 API) */
   async deleteWebhook(id: string): Promise<unknown> {
-    return this.request("DELETE", `/webhooks/${id}`);
+    return this.request("DELETE", `/webhooks/${id}`, undefined, getBaseApiUrlV2());
   }
 }
