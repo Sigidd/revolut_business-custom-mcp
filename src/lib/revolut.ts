@@ -149,7 +149,7 @@ export class RevolutClient {
 
     const tokens = (await res.json()) as {
       access_token: string;
-      refresh_token: string;
+      refresh_token?: string;
       expires_in: number;
     };
 
@@ -157,7 +157,7 @@ export class RevolutClient {
     await store.setCredentials(
       this.userId,
       tokens.access_token,
-      tokens.refresh_token,
+      tokens.refresh_token ?? creds.refreshToken, // keep old refresh_token if Revolut doesn't rotate it
       newExpiresAt
     );
 
