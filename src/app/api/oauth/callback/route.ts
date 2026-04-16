@@ -93,13 +93,6 @@ export async function GET(req: NextRequest) {
 
   const callbackUrl = `${baseUrl}/api/oauth/callback`;
 
-  // Diagnostic logging (no key content exposed) — one line per field
-  const keyLines = privateKeyPem.split("\n");
-  console.log("[PEM] lines=" + keyLines.length + " chars=" + privateKeyPem.length);
-  console.log("[PEM] first=" + keyLines[0]);
-  console.log("[PEM] last=" + keyLines[keyLines.length - 1]);
-  console.log("[PEM] second=" + (keyLines[1] ?? "").slice(0, 40));
-
   let jwtAssertion: string;
   try {
     jwtAssertion = generateRevolutJWT(revolutClientId, privateKeyPem, baseUrl);

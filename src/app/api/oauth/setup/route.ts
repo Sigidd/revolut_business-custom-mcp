@@ -4,7 +4,7 @@
  * POST /api/oauth/setup                       → save credentials → redirect to Revolut consent
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getBaseUrl } from "@/lib/auth";
+import { getBaseUrl, generateRevolutJWT } from "@/lib/auth";
 import { store } from "@/lib/store";
 
 const CALLBACK_URL = "https://revolutbusiness-custom-mcp.vercel.app/api/oauth/callback";
@@ -591,6 +591,23 @@ export async function POST(req: NextRequest): Promise<Response> {
       "La chiave incollata non sembra una chiave privata RSA valida. " +
       "Assicurati di incollare il contenuto di <code>private.pem</code> (non il certificato pubblico). " +
       "Deve iniziare con <code>-----BEGIN RSA PRIVATE KEY-----</code>."
+    );
+  }
+
+  // ── TEST the key immediately — fail fast before sending user to Revolut ──
+  // This catches formatting issues, wrong key type, truncated content, etc.
+  const baseUrlForTest = getBaseUrl();
+  try {
+    generateRevolutJWT(clientId, normalisedKey, baseUrlForTest);
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("Key validation failed at setup:", errMsg);
+    // Show human-readable error + technical detail
+    return errorHtml(
+      "La chiave privata non è valida o è corrotta.<br/><br/>" +
+      "Assicurati di aver incollato l'intero contenuto di <code>private.pem</code>, " +
+      "incluse le righe <code>-----BEGIN RSA PRIVATE KEY-----</code> e <code>-----END RSA PRIVATE KEY-----</code>.<br/><br/>" +
+      "Dettaglio tecnico: <code>" + errMsg.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</code>"
     );
   }
 
