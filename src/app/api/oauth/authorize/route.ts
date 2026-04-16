@@ -17,14 +17,6 @@ import { generateId, getBaseUrl } from "@/lib/auth";
 import { store } from "@/lib/store";
 
 const USER_COOKIE = "mcp_user_id";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
-
-function getConsentBaseUrl(): string {
-  const env = (process.env.REVOLUT_ENVIRONMENT ?? "production").trim().toLowerCase();
-  return env === "sandbox"
-    ? "https://sandbox-business.revolut.com/app-confirm"
-    : "https://business.revolut.com/app-confirm";
-}
 
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
@@ -91,7 +83,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── 3. First-time auth: persist session and redirect to Revolut consent ──
+  // ── 3. First-time auth: persist session and redirect to setup page ───────
   const sessionId = generateId();
   await store.setSession(sessionId, {
     clientId,
@@ -103,27 +95,6 @@ export async function GET(req: NextRequest) {
     createdAt: Date.now(),
   });
 
-  const revolutClientId = process.env.REVOLUT_CLIENT_ID?.trim();
-  if (!revolutClientId) {
-    return NextResponse.json(
-      { error: "server_error", error_description: "REVOLUT_CLIENT_ID not configured" },
-      { status: 500 }
-    );
-  }
-
   const baseUrl = getBaseUrl();
-  const callbackUrl = `${baseUrl}/api/oauth/callback`;
-  const consentBase = getConsentBaseUrl();
-
-  const consentUrl = new URL(consentBase);
-  consentUrl.searchParams.set("client_id", revolutClientId);
-  consentUrl.searchParams.set("redirect_uri", callbackUrl);
-  consentUrl.searchParams.set("response_type", "code");
-  consentUrl.searchParams.set("scope", "READ,WRITE");
-  consentUrl.searchParams.set("state", sessionId);
-
-  const response = NextResponse.redirect(consentUrl.toString());
-  // Pre-set the session cookie so it's available on callback (belt-and-suspenders)
-  // The actual mcp_user_id cookie is set in the callback route
-  return response;
+  return NextResponse.redirect(`${baseUrl}/api/oauth/setup?session=${sessionId}`);
 }

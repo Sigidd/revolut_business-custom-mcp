@@ -115,15 +115,17 @@ export class RevolutClient {
     }
 
     // Token expired — refresh it
-    const clientId = process.env.REVOLUT_CLIENT_ID?.trim();
-    const rawPrivateKey = process.env.REVOLUT_PRIVATE_KEY?.trim();
+    // Use per-user credentials stored in Supabase; fall back to env vars for
+    // backward-compatible users who connected before multi-tenant was added.
+    const clientId = creds.revolutClientId?.trim() || process.env.REVOLUT_CLIENT_ID?.trim();
+    const rawPrivateKey = creds.revolutPrivateKey?.trim() || process.env.REVOLUT_PRIVATE_KEY?.trim();
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim() ?? "http://localhost:3000";
 
     if (!clientId || !rawPrivateKey) {
-      throw new Error("REVOLUT_CLIENT_ID or REVOLUT_PRIVATE_KEY env vars missing");
+      throw new Error("Revolut credentials missing: please reconnect your account");
     }
 
-    // Handle literal \n in env var (common when set via Vercel dashboard)
+    // Handle literal \n in stored or env var key
     const privateKeyPem = rawPrivateKey.replace(/\\n/g, "\n");
 
     const jwtAssertion = generateRevolutJWT(clientId, privateKeyPem, baseUrl);
@@ -158,7 +160,9 @@ export class RevolutClient {
       this.userId,
       tokens.access_token,
       tokens.refresh_token ?? creds.refreshToken, // keep old refresh_token if Revolut doesn't rotate it
-      newExpiresAt
+      newExpiresAt,
+      creds.revolutClientId,   // preserve per-user client id (undefined = use env var)
+      creds.revolutPrivateKey  // preserve per-user private key (undefined = use env var)
     );
 
     return tokens.access_token;

@@ -27,6 +27,8 @@ export interface UserCredentials {
   refreshToken: string;
   tokenExpiresAt: number;
   connectedAt: number;
+  revolutClientId?: string;
+  revolutPrivateKey?: string;
 }
 
 export interface OAuthSession {
@@ -37,6 +39,8 @@ export interface OAuthSession {
   codeChallengeMethod?: string;
   scope?: string;
   createdAt: number;
+  revolutClientId?: string;
+  revolutPrivateKey?: string;
 }
 
 export interface AuthCode {
@@ -65,22 +69,28 @@ export const store = {
     userId: string,
     accessToken: string,
     refreshToken: string,
-    tokenExpiresAt: number
+    tokenExpiresAt: number,
+    revolutClientId?: string,
+    revolutPrivateKey?: string
   ) {
-    const { error } = await db().from("mcp_credentials").upsert({
+    const row: Record<string, unknown> = {
       user_id: userId,
       access_token: accessToken,
       refresh_token: refreshToken,
       token_expires_at: tokenExpiresAt,
       connected_at: Date.now(),
-    });
+    };
+    if (revolutClientId !== undefined) row.revolut_client_id = revolutClientId;
+    if (revolutPrivateKey !== undefined) row.revolut_private_key = revolutPrivateKey;
+
+    const { error } = await db().from("mcp_credentials").upsert(row);
     if (error) throw new Error(`setCredentials: ${error.message}`);
   },
 
   async getCredentials(userId: string): Promise<UserCredentials | null> {
     const { data, error } = await db()
       .from("mcp_credentials")
-      .select("access_token, refresh_token, token_expires_at, connected_at")
+      .select("access_token, refresh_token, token_expires_at, connected_at, revolut_client_id, revolut_private_key")
       .eq("user_id", userId)
       .maybeSingle();
     if (error || !data) return null;
@@ -89,6 +99,8 @@ export const store = {
       refreshToken: data.refresh_token,
       tokenExpiresAt: data.token_expires_at,
       connectedAt: data.connected_at,
+      revolutClientId: data.revolut_client_id ?? undefined,
+      revolutPrivateKey: data.revolut_private_key ?? undefined,
     };
   },
 

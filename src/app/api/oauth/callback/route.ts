@@ -67,15 +67,22 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 2. Exchange code for Revolut tokens ────────────────────────────────
-  const revolutClientId = process.env.REVOLUT_CLIENT_ID?.trim();
-  const rawPrivateKey = process.env.REVOLUT_PRIVATE_KEY?.trim();
+  // Prefer per-user credentials stored in the session; fall back to env vars
+  // for backward compatibility with existing users (e.g. Sigid) who already
+  // have a cookie but have no revolut_client_id stored.
+  const revolutClientId =
+    session.revolutClientId?.trim() ||
+    process.env.REVOLUT_CLIENT_ID?.trim();
+  const rawPrivateKey =
+    session.revolutPrivateKey?.trim() ||
+    process.env.REVOLUT_PRIVATE_KEY?.trim();
   const baseUrl = getBaseUrl();
 
   if (!revolutClientId || !rawPrivateKey) {
     return errorPage("Server configuration error: missing Revolut credentials");
   }
 
-  // Handle literal \n in env var (common when set via Vercel dashboard or .env file)
+  // Handle literal \n in env var or in form-submitted key
   const privateKeyPem = rawPrivateKey.replace(/\\n/g, "\n");
 
   const callbackUrl = `${baseUrl}/api/oauth/callback`;
@@ -159,12 +166,19 @@ export async function GET(req: NextRequest) {
     .slice(0, 32);
 
   // ── 5. Store credentials in Supabase ───────────────────────────────────
+  // Store per-user Revolut credentials only when they came from the setup form
+  // (i.e. not from env vars). This lets getAccessToken() refresh using them.
+  const storedClientId = session.revolutClientId?.trim() || undefined;
+  const storedPrivateKey = session.revolutPrivateKey?.trim() || undefined;
+
   try {
     await store.setCredentials(
       userId,
       tokenData.access_token,
       tokenData.refresh_token,
-      tokenExpiresAt
+      tokenExpiresAt,
+      storedClientId,
+      storedPrivateKey
     );
   } catch (e) {
     console.error("Store credentials error:", e);
