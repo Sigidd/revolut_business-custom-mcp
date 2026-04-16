@@ -43,28 +43,40 @@ Claude will automatically trigger the OAuth flow to connect your Revolut Busines
 
 ## Setup Guide
 
-### 1. Generate your RSA key pair
+### 1. Generate your RSA key pair — start here
 
-Before creating the certificate on Revolut, generate your RSA key pair on your computer:
+> **Why is this needed?**
+> Revolut Business API uses certificate-based authentication instead of a simple API key. This means you prove your identity using a **public/private key pair**:
+> - The **public key** is uploaded to Revolut — it lets Revolut verify that requests come from you.
+> - The **private key** stays on your side (never shared) — it signs every token request so Revolut knows it's authentic.
+>
+> This is the standard for secure server-to-server OAuth (RFC 7523 / JWT Bearer). Without this key pair you cannot create a certificate on Revolut, so **this is the very first thing to do**.
+>
+> 📖 [Official Revolut Business API documentation](https://developer.revolut.com/docs/guides/manage-accounts/get-started/make-your-first-api-call)
 
-**Mac / Linux:**
+**Mac / Linux — Terminal:**
 ```bash
-# Generate private key
+# 1. Generate RSA private key (keep this secret, never share it)
 openssl genrsa -out private.pem 2048
 
-# Generate X509 public certificate (to upload to Revolut)
+# 2. Generate X509 public certificate (this is what you upload to Revolut)
 openssl req -new -x509 -key private.pem -out public.pem -days 1825 -subj "/CN=Revolut MCP"
 ```
 
-**Windows (PowerShell / Git Bash):**
+**Windows — PowerShell or Git Bash:**
 ```powershell
+# Same commands — OpenSSL is included with Git for Windows
 openssl genrsa -out private.pem 2048
 openssl req -new -x509 -key private.pem -out public.pem -days 1825 -subj "/CN=Revolut MCP"
 ```
 
-This gives you two files:
-- `public.pem` — upload this to Revolut
-- `private.pem` — paste this in the setup form (keep it secret)
+> Don't have OpenSSL on Windows? [Download it here](https://slproweb.com/products/Win32OpenSSL.html) or use Git Bash.
+
+You now have two files in your current folder:
+| File | What it is | What to do with it |
+|---|---|---|
+| `public.pem` | Your public certificate | Upload to Revolut when creating the certificate |
+| `private.pem` | Your private key | Paste into the Claude setup form — **never share this** |
 
 ---
 
