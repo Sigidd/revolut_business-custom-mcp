@@ -43,28 +43,76 @@ Claude will automatically trigger the OAuth flow to connect your Revolut Busines
 
 ## Setup Guide
 
-### 1. Revolut Developer Setup
+### 1. Generate your RSA key pair
 
-**Generate an RSA key pair:**
+Before creating the certificate on Revolut, generate your RSA key pair on your computer:
 
+**Mac / Linux:**
 ```bash
 # Generate private key
 openssl genrsa -out private.pem 2048
 
-# Extract public key
-openssl rsa -in private.pem -pubout -out public.pem
+# Generate X509 public certificate (to upload to Revolut)
+openssl req -new -x509 -key private.pem -out public.pem -days 1825 -subj "/CN=Revolut MCP"
 ```
 
-**Register in Revolut Business:**
-1. Log in to [Revolut Business](https://business.revolut.com)
-2. Go to **Settings** -> **APIs** -> **Business API**
-3. Upload your `public.pem` certificate
-4. Copy your **Client ID**
-5. Set your redirect URI to: `https://your-deployment.vercel.app/api/oauth/callback`
+**Windows (PowerShell / Git Bash):**
+```powershell
+openssl genrsa -out private.pem 2048
+openssl req -new -x509 -key private.pem -out public.pem -days 1825 -subj "/CN=Revolut MCP"
+```
 
-For sandbox: use the Revolut Developer Portal and set `REVOLUT_ENVIRONMENT=sandbox`.
+This gives you two files:
+- `public.pem` — upload this to Revolut
+- `private.pem` — paste this in the setup form (keep it secret)
 
-### 2. Supabase Setup
+---
+
+### 2. Create the API certificate on Revolut Business
+
+Go to **Revolut Business → Settings (⚙️) → API → Business API**.
+
+![Revolut Business API settings](docs/screenshots/revolut-api-settings.png)
+
+Click **"Aggiungi"** (Add) in the top-right of the Certificates section.
+
+---
+
+### 3. Fill in the certificate form
+
+![Add certificate modal](docs/screenshots/revolut-add-certificate.png)
+
+Fill in the modal:
+- **Titolo certificato** — give it a name (e.g. `Claude MCP`)
+- **URI di reindirizzamento OAuth** — paste exactly:
+  ```
+  https://your-deployment.vercel.app/api/oauth/callback
+  ```
+- **Chiave pubblica X509** — paste the full contents of your `public.pem` file
+
+Click **"Continua"**.
+
+---
+
+### 4. Copy your Client ID
+
+![Certificate detail with Client ID](docs/screenshots/revolut-client-id.png)
+
+After creation, Revolut shows the certificate detail panel on the right. Copy the **ID cliente** (starts with `po_live_` or `po_test_`) — you'll need it in the next step.
+
+---
+
+### 5. Connect via Claude
+
+When you add the MCP connector to Claude for the first time, you'll be guided through a setup form that asks for:
+- Your **Client ID** from Revolut
+- Your **private key** (`private.pem` contents)
+
+The form validates the format live and walks you through each step.
+
+---
+
+### 6. Supabase Setup
 
 Create a Supabase project and run this SQL:
 
@@ -75,7 +123,9 @@ CREATE TABLE mcp_credentials (
   access_token TEXT NOT NULL,
   refresh_token TEXT NOT NULL,
   token_expires_at BIGINT NOT NULL,
-  connected_at BIGINT NOT NULL
+  connected_at BIGINT NOT NULL,
+  revolut_client_id TEXT,
+  revolut_private_key TEXT
 );
 
 -- OAuth sessions (10-min TTL, stores PKCE state)
@@ -120,7 +170,15 @@ ALTER TABLE mcp_access_tokens DISABLE ROW LEVEL SECURITY;
 ALTER TABLE mcp_oauth_clients DISABLE ROW LEVEL SECURITY;
 ```
 
-### 3. Environment Variables
+> If you already have the tables, just run:
+> ```sql
+> ALTER TABLE mcp_credentials ADD COLUMN IF NOT EXISTS revolut_client_id TEXT;
+> ALTER TABLE mcp_credentials ADD COLUMN IF NOT EXISTS revolut_private_key TEXT;
+> ```
+
+---
+
+### 7. Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in:
 
@@ -134,6 +192,8 @@ SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_ANON_KEY=your_anon_key
 ```
 
+> **Multi-tenant mode:** `REVOLUT_CLIENT_ID` and `REVOLUT_PRIVATE_KEY` are only needed for the first/admin user. Other users provide their own credentials through the setup form during OAuth.
+
 **REVOLUT_PRIVATE_KEY format:** Use `\n` (literal backslash-n) for newlines when setting in Vercel or `.env`. The code converts them to real newlines automatically.
 
 ```bash
@@ -141,7 +201,9 @@ SUPABASE_ANON_KEY=your_anon_key
 cat private.pem | awk 'NF {printf "%s\\n", $0}'
 ```
 
-### 4. Deploy to Vercel
+---
+
+### 8. Deploy to Vercel
 
 ```bash
 npm install
@@ -160,7 +222,7 @@ npx vercel env add SUPABASE_ANON_KEY
 npx vercel env add NEXT_PUBLIC_BASE_URL
 ```
 
-### 5. Add to Claude
+### 9. Add to Claude
 
 In Claude's MCP settings, add a new remote server:
 
@@ -174,6 +236,7 @@ URL: https://your-deployment.vercel.app/mcp
 
 ```
 Claude -> OAuth 2.1 -> /api/oauth/authorize
+                    -> /api/oauth/setup  (first-time: collect Revolut credentials)
                     -> Revolut consent screen
                     -> /api/oauth/callback (exchanges code, stores tokens)
                     -> Bearer token issued to Claude
@@ -182,11 +245,15 @@ Claude tool call -> /mcp -> withMcpAuth -> RevolutClient -> Revolut API
                                           (auto-refreshes expired tokens)
 ```
 
+## Multi-tenant
+
+Each user who adds the connector goes through the setup form once and enters their own Revolut Business `Client ID` and `private key`. Their credentials are stored securely in Supabase and never shared. Subsequent sessions use silent re-auth via a long-lived cookie.
+
 ## Token Refresh
 
 Revolut access tokens expire in ~40 minutes. The `RevolutClient` automatically:
 1. Checks token expiry before each API call (with 60-second buffer)
-2. Uses the stored refresh token + new JWT assertion to get a fresh token
+2. Uses the stored refresh token + JWT assertion to get a fresh token
 3. Updates the stored tokens in Supabase
 
 This is transparent to Claude — no re-authentication required.
