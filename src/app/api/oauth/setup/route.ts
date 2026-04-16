@@ -602,5 +602,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   consentUrl.searchParams.set("scope", "READ,WRITE");
   consentUrl.searchParams.set("state", sessionId);
 
-  return NextResponse.redirect(consentUrl.toString());
+  // 303 See Other — tells the browser to follow the redirect with GET
+  // (not 307 which would re-POST to Revolut's consent page → 405 Method Not Allowed)
+  return NextResponse.redirect(consentUrl.toString(), 303);
 }
