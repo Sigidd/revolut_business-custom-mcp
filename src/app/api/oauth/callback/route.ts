@@ -82,8 +82,14 @@ export async function GET(req: NextRequest) {
     return errorPage("Server configuration error: missing Revolut credentials");
   }
 
-  // Handle literal \n in env var or in form-submitted key
-  const privateKeyPem = rawPrivateKey.replace(/\\n/g, "\n");
+  // Normalise private key PEM:
+  // 1. Replace literal \n strings (common when copied from env vars or terminals)
+  // 2. Strip Windows \r characters (textarea on Windows may add \r\n)
+  // 3. Ensure the BEGIN/END header lines are on their own lines
+  const privateKeyPem = rawPrivateKey
+    .replace(/\\n/g, "\n")   // literal \n → real newline
+    .replace(/\r\n/g, "\n")  // CRLF → LF
+    .replace(/\r/g, "\n");   // stray CR → LF
 
   const callbackUrl = `${baseUrl}/api/oauth/callback`;
 
@@ -91,8 +97,9 @@ export async function GET(req: NextRequest) {
   try {
     jwtAssertion = generateRevolutJWT(revolutClientId, privateKeyPem, baseUrl);
   } catch (e) {
-    console.error("JWT generation failed:", e);
-    return errorPage("Server error: failed to generate JWT assertion");
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("JWT generation failed:", errMsg);
+    return errorPage(`Server error: failed to generate JWT assertion — ${errMsg}`);
   }
 
   const tokenBody = new URLSearchParams({

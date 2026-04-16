@@ -577,6 +577,23 @@ export async function POST(req: NextRequest): Promise<Response> {
     return errorHtml("Tutti i campi sono obbligatori (session, client_id, private_key).");
   }
 
+  // Server-side validation: normalise key and check it's actually a private key
+  const normalisedKey = privateKey
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+
+  if (
+    !normalisedKey.includes("-----BEGIN RSA PRIVATE KEY-----") &&
+    !normalisedKey.includes("-----BEGIN PRIVATE KEY-----")
+  ) {
+    return errorHtml(
+      "La chiave incollata non sembra una chiave privata RSA valida. " +
+      "Assicurati di incollare il contenuto di <code>private.pem</code> (non il certificato pubblico). " +
+      "Deve iniziare con <code>-----BEGIN RSA PRIVATE KEY-----</code>."
+    );
+  }
+
   // Load and validate session
   const session = await store.getSession(sessionId);
   if (!session) {
@@ -584,10 +601,11 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   // Persist user credentials into the session so callback can use them
+  // Store the normalised key (CRLF → LF, literal \n → real newline)
   await store.setSession(sessionId, {
     ...session,
     revolutClientId: clientId,
-    revolutPrivateKey: privateKey,
+    revolutPrivateKey: normalisedKey,
   });
 
   // Build Revolut consent URL using the user's client_id
