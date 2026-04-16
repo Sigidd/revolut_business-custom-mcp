@@ -82,14 +82,15 @@ export async function GET(req: NextRequest) {
     return errorPage("Server configuration error: missing Revolut credentials");
   }
 
-  // Normalise private key PEM:
-  // 1. Replace literal \n strings (common when copied from env vars or terminals)
-  // 2. Strip Windows \r characters (textarea on Windows may add \r\n)
-  // 3. Ensure the BEGIN/END header lines are on their own lines
+  // Normalise PEM: handle all line ending variants and strip blank lines
   const privateKeyPem = rawPrivateKey
-    .replace(/\\n/g, "\n")   // literal \n → real newline
-    .replace(/\r\n/g, "\n")  // CRLF → LF
-    .replace(/\r/g, "\n");   // stray CR → LF
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .join("\n");
 
   const callbackUrl = `${baseUrl}/api/oauth/callback`;
 

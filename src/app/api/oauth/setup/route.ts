@@ -577,11 +577,16 @@ export async function POST(req: NextRequest): Promise<Response> {
     return errorHtml("Tutti i campi sono obbligatori (session, client_id, private_key).");
   }
 
-  // Server-side validation: normalise key and check it's actually a private key
+  // Normalise PEM key: handle all line ending variants, strip blank lines
+  // (blank lines inside PEM body cause OpenSSL "bad end line" errors)
   const normalisedKey = privateKey
-    .replace(/\\n/g, "\n")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
+    .replace(/\\n/g, "\n")      // literal \n strings → real newlines
+    .replace(/\r\n/g, "\n")     // Windows CRLF → LF
+    .replace(/\r/g, "\n")       // stray CR → LF
+    .split("\n")
+    .map((l) => l.trim())       // strip leading/trailing spaces per line
+    .filter((l) => l.length > 0) // remove blank lines (the main culprit)
+    .join("\n");
 
   if (
     !normalisedKey.includes("-----BEGIN RSA PRIVATE KEY-----") &&
